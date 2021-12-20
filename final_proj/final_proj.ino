@@ -5,76 +5,95 @@
 #define MG946_L 553
 #define MG946_M 1424
 #define MG946_H 2399
-#define N_SAMPLES 100
+#define N_SAMPLES 300
+#define SP 31
 //1424 923 871 85도 중앙 기준
 Servo MG946;
-
-float Kp = 2.5;                //P게인 값
-float Ki = 0;                  //I게인 값 
-float Kd = 1;                  //D게인 값
-double Setpoint, Input, Output, ServoOutput;                                       
+//20 1 11
+float Kp = 1.7;                //P게인 값
+float Ki = 0.9;                  //I게인 값
+float Kd = 0.95;                  //D게인 값
+double Setpoint, Input, Output, ServoOutput;
 
 int a, b; // unit: mm
 
+boolean D = true;
 
-int servo_duty(int a){
-  return map(a,0,180,MG946_L,MG946_H);
-}
-int dist_map(int a){
-  return map(a,600,0,60,120);
+int sort_asc(const void* item1, const void* item2)
+{
+  float a = *((float*)item1);
+  float b = *((float*)item2);
+  return a - b;
 }
 
-float ir_distance2(void){ // return value unit: mm
+int servo_duty(int a) {
+  return map(a, 0, 180, MG946_L, MG946_H);
+}
+
+float ir_distance2(void) { // return value unit: mm
   float ir_val[N_SAMPLES];
   float tmp;
-
   // take N_SAMPLES and sort them in an ascending order.
   ir_val[0] = float(analogRead(PIN_IR));
-  for (int i=1; i<N_SAMPLES; i++) { 
-    delayMicroseconds(10);
+
+  for (int i = 1; i < N_SAMPLES; i++) {
     ir_val[i] = float(analogRead(PIN_IR));
-    for(int j = i-1; j >= 0; j--) { // i-1 to 0
-      if(ir_val[j] > ir_val[j+1]) {
-        tmp = ir_val[j];
-        ir_val[j] = ir_val[j+1];
-        ir_val[j+1] = tmp;
-      }
-    }
   }
 
-  int cnt = N_SAMPLES/3;
+  qsort(ir_val, N_SAMPLES, sizeof(ir_val[0]), sort_asc);
+
+  int cnt = N_SAMPLES / 2;
   tmp = 0.0;
-  for(int i = 0; i < cnt; i++) {
-      tmp += ir_val[i];
+  for (int i = 50; i < cnt + 50; i++) {
+    tmp += ir_val[i];
   }
   tmp = tmp / (float) cnt;
-  tmp = ((6762.0/(tmp-9.0))-4.0);
-
+  tmp = ((6762.0 / (tmp - 9.0)) - 4.0);
   return tmp;
 }
 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);   //PID객체 생성
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println("start");
+  if (D)
+  {
+    Serial.begin(57600);
+    Serial.println("start");
+  }
   MG946.attach(MG946_Pin);
   MG946.writeMicroseconds(MG946_M); //초기화 각도삽입
 
   myPID.SetMode(AUTOMATIC);               //PID모드를 AUTOMATIC으로 설정
-  myPID.SetOutputLimits(-50,50);          //PID의 값을 최소 -80부터 최대 80까지 설정
+  myPID.SetOutputLimits(-15,15);         //PID의 값을 최소 -80부터 최대 80까지 설정
 }
-                   //막대 중앙 위치(Set Point를 15cm로 설정)
 void loop() {
-  Setpoint = 30;
-  float raw_dist = ir_distance2();
-  Serial.print("raw_dist:");
-  Serial.print(raw_dist);
-  Input = raw_dist;
-  myPID.Compute(); 
-  ServoOutput=87+Output;
-  Serial.print(",ServoOutput:");
-  Serial.println(ServoOutput);
-  MG946.writeMicroseconds(servo_duty(ServoOutput));
+  //pid outotune
+  //myPID.SetTunings(Kp, Ki, Kd);   
+  //myPID.Compute();
   
+  Setpoint = SP;
+  float raw_dist = ir_distance2();  
+  if (abs(raw_dist - SP) < 0.8)
+  {
+    raw_dist = SP;
+  }
+  if (D)
+  {
+    Serial.print("Set Point:");
+    Serial.print(SP);
+    Serial.print(",raw_dist:");
+    Serial.print(raw_dist);
+    Serial.print(",raw_ist:");
+    Serial.print(600);
+  }
+  Input = raw_dist;
+  myPID.Compute();
+  ServoOutput = 85 + Output;
+  if (D)
+  {
+    Serial.print(",ServoOutput:");
+    Serial.println(ServoOutput);
+  }
+  MG946.writeMicroseconds(servo_duty(ServoOutput));
+
 }

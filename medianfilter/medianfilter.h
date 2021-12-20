@@ -5,8 +5,14 @@
 #include "Arduino.h"
 
 
-#ifndef IR_PIN
-  #error Please define IR_PIN (e.g. A0)
+#ifndef MEDIANFILTER_IR_PIN
+  #if defined(PIN_IR)
+    #define MEDIANFILTER_IR_PIN PIN_IR
+  #elif defined(IR_PIN)
+    #define MEDIANFILTER_IR_PIN IR_PIN
+  #else
+    #error Please define either IR_PIN -OR- PIN_IR (e.g. A0)
+  #endif
 #endif
 
 
@@ -37,7 +43,7 @@ template<float(*fnCalcDistance)(short) = nullptr>
 class MedianFilter {
 public:
   void init() {
-    analogRead(IR_PIN);
+    analogRead(MEDIANFILTER_IR_PIN);
 
     cli();
 
